@@ -14,6 +14,7 @@ let mindar = null, overlay = null, arBuilding = null, rig = null, arRunning = fa
 let targetVisible = false, arUsed = false, modelView = null, modelPromise = null;
 let night = false;
 let progress = 0;           // knob position 0–1
+let holdLight = false;      // play mode keeps the light button hidden until the last line ends
 
 /* ================= state ================= */
 function setState(next) {
@@ -38,7 +39,7 @@ const ALIGN = { y: (POSTER_H / 2 - (18 + 1752)) / POSTER_W, s: 1752 / POSTER_W }
 let revealAt = 0;
 
 async function startAR() {
-  sfx.unlock(); sfx.preloadNarration();
+  sfx.unlock(); sfx.preloadNarration(); sfx.preloadFinale();
   $('#loading').hidden = false;
   try {
     mindar = new MindARThree({
@@ -201,9 +202,11 @@ function setProgress(p, { fromUser = false } = {}) {
     shownStage = idx;
     syncAudio();
   }
-  $('#lightBtn').hidden = !(progress >= 0.995 && !night);
+  refreshLightBtn();
   if (state === 'build' || state === 'model') sfx.setScene({ h });
 }
+
+function refreshLightBtn() { $('#lightBtn').hidden = !(progress >= 0.995 && !night && !holdLight); }
 
 let anim = null;
 function animateTo(target, ms, onDone) {
@@ -224,11 +227,13 @@ function stopPlay() {
   if (anim) cancelAnimationFrame(anim.raf); anim = null;
   sfx.stopVoice();
   body.classList.remove('playing');
+  if (holdLight) { holdLight = false; refreshLightBtn(); }
 }
 const animateAsync = (to, ms) => new Promise(r => animateTo(to, ms, r));
 async function playStory() {
   const token = ++playToken;
   body.classList.add('playing');
+  holdLight = true; refreshLightBtn();
   const live = () => token === playToken;
   if (night) setNight(false);
   if (progress >= 0.995) { await animateAsync(0, 900); if (!live()) return; }
@@ -247,9 +252,10 @@ async function playStory() {
     }
   }
   body.classList.remove('playing');
+  holdLight = false; refreshLightBtn();   // "Now it's your turn" has finished
 }
 $('#playBtn').addEventListener('click', () => {
-  sfx.unlock(); sfx.preloadNarration();
+  sfx.unlock(); sfx.preloadNarration(); sfx.preloadFinale();
   if (body.classList.contains('playing')) return stopPlay();
   playStory();
 });
@@ -300,7 +306,7 @@ function setNight(on) {
   $('#finaleText').hidden = true;
   if (on) {
     sfx.lightSwitch();
-    setTimeout(() => { if (night) sfx.startJazz(); }, 1400);
+    setTimeout(() => { if (night) sfx.startJazz(); }, 900);
     setTimeout(() => { if (night) $('#finaleText').hidden = false; }, 2600); // once the lights reach the top
     $('#lightBtn').hidden = true;
     navigator.vibrate?.([20, 60, 40]);
@@ -327,7 +333,7 @@ new ResizeObserver(([e]) => {
 
 /* ================= navigation ================= */
 $('#startBtn').addEventListener('click', startAR);
-$('#skipBtn').addEventListener('click', () => { sfx.unlock(); sfx.preloadNarration(); arUsed = false; setProgress(0); setState('model'); });
+$('#skipBtn').addEventListener('click', () => { sfx.unlock(); sfx.preloadNarration(); sfx.preloadFinale(); arUsed = false; setProgress(0); setState('model'); });
 $('#detailsBtn').addEventListener('click', () => setState('details'));
 $('#timelineBtn').addEventListener('click', () => {
   sfx.unlock();

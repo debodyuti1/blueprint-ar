@@ -176,65 +176,31 @@ export function lightSwitch() {
   });
 }
 
-/* ---------- finale: procedural swing loop through an old-record filter ---------- */
-let jazz = null;
-export function startJazz() {
-  if (!ctx || jazz) return;
-  const bpm = 138, beat = 60 / bpm, swing = 0.62;
-  const out = ctx.createGain(); out.gain.value = 1;
-  const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 280;
-  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 3400;
-  const sh = ctx.createWaveShaper(); const curve = new Float32Array(256);
-  for (let i = 0; i < 256; i++) { const x = i / 128 - 1; curve[i] = Math.tanh(x * 1.8); }
-  sh.curve = curve;
-  out.connect(hp).connect(lp).connect(sh).connect(musicBus);
-  // record crackle
-  const cr = loopNoise(whiteBuf), crf = ctx.createBiquadFilter(); crf.type = 'highpass'; crf.frequency.value = 2500;
-  const crg = ctx.createGain(); crg.gain.value = 0.015; cr.connect(crf).connect(crg).connect(musicBus);
-  // Bb6 – G7 – Cm7 – F7 (I–VI–ii–V)
-  const chords = [
-    { bass: [58.27, 73.42, 87.31, 98.0], notes: [233.08, 293.66, 349.23, 392.0] },
-    { bass: [49.0, 61.74, 73.42, 87.31], notes: [196.0, 246.94, 293.66, 349.23] },
-    { bass: [65.41, 77.78, 98.0, 116.54], notes: [261.63, 311.13, 392.0, 466.16] },
-    { bass: [87.31, 110.0, 130.81, 77.78], notes: [220.0, 311.13, 349.23, 440.0] },
-  ];
-  let bar = 0, next = now() + 0.1;
-  const pluck = (t, f, peak, d, type = 'triangle') => {
-    const o = ctx.createOscillator(), g = ctx.createGain(); o.type = type; o.frequency.value = f;
-    o.connect(g).connect(out); env(g, t, 0.005, peak, d); o.start(t); o.stop(t + d + 0.05);
-  };
-  const timer = setInterval(() => {
-    while (next < now() + 0.4) {
-      const c = chords[bar % 4];
-      for (let b = 0; b < 4; b++) {
-        const t = next + b * beat;
-        pluck(t, c.bass[b], 0.32, beat * 0.9, 'triangle');                 // walking bass
-        noiseHit({ t, freq: 7000, q: 1, type: 'highpass', peak: 0.05, d: 0.09, bus: out }); // ride
-        noiseHit({ t: t + beat * swing, freq: 7000, q: 1, type: 'highpass', peak: 0.03, d: 0.05, bus: out });
-        if (b === 1 || b === 3) noiseHit({ t, freq: 2500, q: 0.6, peak: 0.05, d: 0.12, bus: out }); // brush
-      }
-      // Charleston comp: beat 1 and the "and" of 2
-      for (const off of [0, beat * (1 + swing)]) c.notes.forEach(f => pluck(next + off, f, 0.07, 0.35, 'sine'));
-      // a little melody hook every other bar
-      if (bar % 2 === 0) [c.notes[3] * 2, c.notes[2] * 2, c.notes[3] * 2].forEach((f, i) => pluck(next + beat * (2 + i * swing), f, 0.06, 0.3, 'square'));
-      next += beat * 4; bar++;
-    }
-  }, 100);
-  jazz = { timer, cr };
-  ramp(musicBus.gain, 0.55, 1.5);
+/* ---------- finale music (assets/finale.mp3, plays once when the lights come on) ---------- */
+let finaleBuf = null, finaleSrc = null;
+function loadFinale() {
+  if (!finaleBuf) finaleBuf = fetch('assets/finale.mp3').then(r => r.arrayBuffer())
+    .then(b => new Promise((res, rej) => ctx.decodeAudioData(b, res, rej)));
+  return finaleBuf;
 }
-export function stopJazz() {
-  if (!ctx || !jazz) return;
+export function preloadFinale() { if (ctx) loadFinale().catch(() => {}); }
+export async function startJazz() {
+  if (!ctx) return;
+  stopJazz(true);
+  let buf; try { buf = await loadFinale(); } catch (e) { return; }
+  const src = ctx.createBufferSource(); src.buffer = buf; src.connect(musicBus);
+  finaleSrc = src;
+  musicBus.gain.cancelScheduledValues(now()); musicBus.gain.setValueAtTime(0.0001, now());
+  musicBus.gain.exponentialRampToValueAtTime(0.9, now() + 0.6);
+  src.onended = () => { if (finaleSrc === src) finaleSrc = null; };
+  src.start();
+}
+export function stopJazz(instant = false) {
+  if (!ctx || !finaleSrc) return;
+  const s = finaleSrc; finaleSrc = null;
+  if (instant) { try { s.stop(); } catch (e) {} return; }
   ramp(musicBus.gain, 0, 0.8);
-  const j = jazz; jazz = null;
-  setTimeout(() => { clearInterval(j.timer); j.cr.stop(); }, 1200);
-}
-
-// loudness probe (used by the automated test)
-export function level() {
-  if (!analyser) return -1;
-  const a = new Float32Array(analyser.fftSize); analyser.getFloatTimeDomainData(a);
-  return Math.sqrt(a.reduce((s, v) => s + v * v, 0) / a.length);
+  setTimeout(() => { try { s.stop(); } catch (e) {} }, 1000);
 }
 
 /* ---------- narration (assets/narration/01.mp3 … 06.mp3) ---------- */
@@ -268,4 +234,11 @@ export async function speak(i) {
 export function stopVoice() {
   if (voiceSrc) { const s = voiceSrc; voiceSrc = null; try { s.stop(); } catch (e) {} }
   if (ducking) { ducking = false; setScene({}); }
+}
+
+// loudness probe (used by the automated test)
+export function level() {
+  if (!analyser) return -1;
+  const a = new Float32Array(analyser.fftSize); analyser.getFloatTimeDomainData(a);
+  return Math.sqrt(a.reduce((s, v) => s + v * v, 0) / a.length);
 }
