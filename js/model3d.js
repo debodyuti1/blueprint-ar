@@ -13,9 +13,8 @@ export async function createModelView(container, { onFrame } = {}) {
 
   const scene = new THREE.Scene();
   scene.add(building.group);
-  building.group.position.x = -0.08; // leave room for the Chrysler ghost
 
-  const grid = new THREE.GridHelper(0.9, 18, 0x8fb4ff, 0x5d87d6);
+  const grid = new THREE.GridHelper(0.6, 12, 0x8fb4ff, 0x5d87d6);
   grid.material.transparent = true; grid.material.opacity = 0.3;
   scene.add(grid);
 

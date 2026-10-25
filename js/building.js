@@ -73,64 +73,8 @@ const lineFrag = /* glsl */`
     gl_FragColor = vec4(col, a * uFade);
   }`;
 
-/* ---------- Chrysler Building ghost (1,046 ft), drawn procedurally ---------- */
-const CHRYSLER_H = 1046 / 1454;
-function chryslerGeometry() {
-  const v = [];
-  const seg = (a, b) => v.push(...a, ...b);
-  const box = (y0, y1, hx, hz) => {
-    const c = [[-hx, -hz], [hx, -hz], [hx, hz], [-hx, hz]];
-    for (let i = 0; i < 4; i++) {
-      const [x, z] = c[i], [x2, z2] = c[(i + 1) % 4];
-      seg([x, y0, z], [x, y1, z]);
-      seg([x, y1, z], [x2, y1, z2]);
-      seg([x, y0, z], [x2, y0, z2]);
-    }
-  };
-  box(0, 0.075, 0.12, 0.09);
-  box(0.075, 0.2, 0.085, 0.07);
-  box(0.2, 0.43, 0.062, 0.062);
-  box(0.43, 0.5, 0.052, 0.052);
-  // stepped crown: shrinking arches on all four faces
-  for (let k = 0; k < 5; k++) {
-    const r = 0.048 - k * 0.0085, y = 0.5 + k * 0.024, h = r * 1.05;
-    for (const face of [0, 1, 2, 3]) {
-      let prev = null;
-      for (let i = 0; i <= 12; i++) {
-        const t = Math.PI * (i / 12);
-        const u = Math.cos(t) * r, w = y + Math.sin(t) * h;
-        const p = face === 0 ? [u, w, r] : face === 1 ? [u, w, -r] : face === 2 ? [r, w, u] : [-r, w, u];
-        if (prev) seg(prev, p);
-        prev = p;
-      }
-    }
-  }
-  // spire
-  for (const [x, z] of [[-0.01, -0.01], [0.01, -0.01], [0.01, 0.01], [-0.01, 0.01]]) seg([x, 0.62, z], [0, CHRYSLER_H, 0]);
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
-  return g;
-}
-
-function labelSprite(text, color = '#cfe5ff') {
-  const c = document.createElement('canvas'); c.width = 512; c.height = 96;
-  const ctx = c.getContext('2d');
-  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
-  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false });
-  const s = new THREE.Sprite(mat); s.scale.set(0.32, 0.06, 1); s.renderOrder = 10;
-  s.setText = (t, col = color) => {
-    ctx.clearRect(0, 0, 512, 96);
-    ctx.font = '600 34px Inter, system-ui, sans-serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = col; ctx.fillText(t, 256, 48);
-    tex.needsUpdate = true;
-  };
-  s.setText(text);
-  return s;
-}
-
 /* ---------- a building instance ---------- */
-export async function createBuilding({ chrysler = true, opacity = 0.34 } = {}) {
+export async function createBuilding({ opacity = 0.34 } = {}) {
   const D = await loadBuildingData();
   const group = new THREE.Group();
 
@@ -181,25 +125,7 @@ export async function createBuilding({ chrysler = true, opacity = 0.34 } = {}) {
   beam.visible = false;
   group.add(beam);
 
-  // Chrysler ghost + the 1,046 ft line
-  let ghost = null, label = null, marker = null, passed = false;
-  if (chrysler) {
-    ghost = new THREE.LineSegments(chryslerGeometry(),
-      new THREE.LineDashedMaterial({ color: 0x9fd0ff, dashSize: 0.008, gapSize: 0.006, transparent: true, opacity: 0.55, depthWrite: false }));
-    ghost.computeLineDistances();
-    ghost.position.set(0.34, 0, -0.02);
-    group.add(ghost);
-    label = labelSprite('CHRYSLER · 1,046 FT');
-    label.position.set(0.34, CHRYSLER_H + 0.05, -0.02);
-    group.add(label);
-    const mg = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-0.16, CHRYSLER_H, 0), new THREE.Vector3(0.48, CHRYSLER_H, 0)]);
-    marker = new THREE.Line(mg, new THREE.LineDashedMaterial({ color: 0x9fd0ff, dashSize: 0.012, gapSize: 0.01, transparent: true, opacity: 0.4, depthWrite: false }));
-    marker.computeLineDistances();
-    group.add(marker);
-  }
-
   let target = 1, shown = 1, lightTarget = 0, light = 0, nightTarget = 0, night = 0;
-  let onPass = null;
 
   function emit(n) {
     const b = Math.min(D.B - 1, Math.floor(shown * D.B));
@@ -228,8 +154,6 @@ export async function createBuilding({ chrysler = true, opacity = 0.34 } = {}) {
     setHeight(h, snap = false) { target = Math.max(0, Math.min(1, h)); if (snap) shown = target; },
     setNight(on) { nightTarget = on ? 1 : 0; lightTarget = on ? 1.02 : 0; if (!on) light = Math.min(light, 0); },
     setFade(f) { uniforms.uFade.value = f; group.visible = f > 0.01; },
-    setExtras(on) { if (ghost) { ghost.visible = on; label.visible = on; marker.visible = on; } },
-    set onPass(fn) { onPass = fn; },
     update(dt, t, realDt = dt) {
       const prev = shown;
       shown += (target - shown) * Math.min(1, dt * 9);
@@ -271,15 +195,6 @@ export async function createBuilding({ chrysler = true, opacity = 0.34 } = {}) {
       beam.rotation.z = Math.sin(t * 0.5) * 0.35;
       beam.rotation.x = Math.cos(t * 0.37) * 0.2;
 
-      if (ghost) {
-        const nowPassed = shown > CHRYSLER_H + 0.002;
-        if (nowPassed !== passed) {
-          passed = nowPassed;
-          label.setText(passed ? 'PASSED CHRYSLER · 1,046 FT' : 'CHRYSLER · 1,046 FT', passed ? '#ffd27a' : '#cfe5ff');
-          if (passed && onPass) onPass();
-        }
-        ghost.material.opacity = 0.55 * (1 - night * 0.6);
-      }
     },
   };
 }

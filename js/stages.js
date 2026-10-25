@@ -17,28 +17,6 @@ export const STAGES = [
     line: 'In Washington, President Hoover pressed a button to switch on the lights. Your turn.' },
 ];
 
-export const FINALE = {
-  date: 'May 1, 1931', title: 'Lights on', big: '410 days',
-  line: '102 floors, from first shovel to opening day.',
-  note: 'The broadcast antenna on top was added in 1950.',
-};
-
-// tap-to-read stories pinned to the building (y = height on the building)
-export const STORIES = [
-  { id: 'rivets', y: 0.3, label: 'Rivet gangs', kicker: 'Floor 36',
-    title: 'Red-hot rivets, tossed through the air',
-    text: 'Rivets were heated in a forge, tossed to a catcher with a bucket, then hammered in by the rest of the gang. Around 3,000 workers raised the building.',
-    src: 'https://www.inkl.com/news/it-would-take-11-seconds-to-hit-the-ground-the-roughneck-daredevils-who-built-the-empire-state-building' },
-  { id: 'hine', y: 0.62, label: 'Sky Boy', kicker: 'Floor 74',
-    title: 'Photographed a quarter mile up',
-    text: 'Lewis Hine photographed the ironworkers at work. His “Sky Boy” shows Neil Doherty on a steel cable so high that a fall would take about 11 seconds.',
-    src: 'https://www.inkl.com/news/it-would-take-11-seconds-to-hit-the-ground-the-roughneck-daredevils-who-built-the-empire-state-building' },
-  { id: 'mast', y: 0.82, label: 'Airship dock', kicker: 'The mast',
-    title: 'A parking spot for airships',
-    text: 'The crown was designed as a mooring mast for dirigibles. Steel for it topped out on Nov 21, 1930, but high winds made docking impractical, and it became an observatory instead.',
-    src: 'https://www.enr.com/articles/60722-the-race-into-the-sky-that-built-the-empire-state-building' },
-];
-
 const T = s => Date.parse(s + 'T12:00:00Z');
 const START = T('1930-03-17');
 

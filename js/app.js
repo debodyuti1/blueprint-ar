@@ -3,7 +3,7 @@ import { MindARThree } from '../vendor/mindar/mindar-image-three.prod.js';
 import { createOverlay } from './overlay.js';
 import { createBuilding, loadBuildingData } from './building.js';
 import { createModelView } from './model3d.js';
-import { STAGES, FINALE, STORIES, heightAt, dateAt, dayAt, floorAt, stageAt } from './stages.js';
+import { STAGES, heightAt, dateAt, dayAt, floorAt, stageAt } from './stages.js';
 import * as sfx from './audio.js';
 
 const $ = s => document.querySelector(s);
@@ -24,21 +24,18 @@ function setState(next) {
   updateLostHint();
   if (next === 'model') { pauseAR(); ensureModel().then(m => { if (state === 'model') m.start(); }); }
   else { modelView?.stop(); if (arUsed && next !== 'intro') resumeAR(); }
-  if (next === 'build' || next === 'model') {
-    if (!body.dataset.coached) { body.classList.add('coach'); }
-  }
+  if ((next === 'build' || next === 'model') && !body.dataset.coached) body.classList.add('coach');
   if (next !== 'build' && next !== 'model') stopPlay();
   syncAudio();
 }
 
 /* ================= AR ================= */
-// Rig poses in poster units (1 = poster width, origin = poster centre, +z toward you).
-// ALIGN puts the 3D model exactly over the photo's building (telephoto shot:
-// 1.205 px per ft, spire tip at y=18 px, ground 1,752 px below it).
+// The 3D model sits exactly on the photo's building. Poster units: 1 = poster
+// width, origin = poster centre. The photo is a telephoto shot at 1.205 px per
+// ft; the spire tip is at y=18 px and street level 1,752 px below it.
 const POSTER_W = 1007, POSTER_H = 1600;
-const ALIGN = { y: (POSTER_H / 2 - (18 + 1752)) / POSTER_W, z: 0, s: 1752 / POSTER_W };
-const FLOAT = { y: -0.42, z: 0.34, s: 0.9 };
-let revealAt = 0, liftT = 0, liftPlayed = false;
+const ALIGN = { y: (POSTER_H / 2 - (18 + 1752)) / POSTER_W, s: 1752 / POSTER_W };
+let revealAt = 0;
 
 async function startAR() {
   sfx.unlock();
@@ -48,21 +45,24 @@ async function startAR() {
       container: $('#ar'),
       imageTargetSrc: 'assets/targets.mind',
       uiLoading: 'no', uiScanning: 'no', uiError: 'no',
-      filterMinCF: 0.0005, filterBeta: 0.004,
-      missTolerance: 8,
+      // low jitter when still (minCF), quick catch-up when moving (beta)
+      filterMinCF: 0.0001, filterBeta: 10,
+      warmupTolerance: 3, missTolerance: 6,
     });
-    const [ov, b] = await Promise.all([createOverlay(), createBuilding({ opacity: 0.27 })]);
+    const [ov, b] = await Promise.all([createOverlay(), createBuilding({ opacity: 0.3 })]);
     overlay = ov; arBuilding = b;
-    arBuilding.onPass = () => sfx.passSting();
     arBuilding.setFade(0);
     rig = new THREE.Group();
+    rig.position.set(0, ALIGN.y, 0);
+    rig.scale.setScalar(ALIGN.s);
     rig.add(arBuilding.group);
     const anchor = mindar.addAnchor(0);
     anchor.group.add(overlay.mesh, rig);
     anchor.onTargetFound = () => {
       targetVisible = true;
       if (!body.classList.contains('found')) {
-        body.classList.add('found');
+        body.classList.add('found', 'revealing');
+        setTimeout(() => body.classList.remove('revealing'), 1300);
         overlay.setMode('reveal');
         revealAt = performance.now();
         sfx.scanWhoosh();
@@ -88,27 +88,20 @@ const withTimeout = (p, ms) => Promise.race([p, new Promise((_, r) => setTimeout
 const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
 const arClock = new THREE.Clock();
+let materialized = false;
 function arFrame() {
   const raw = arClock.getDelta(), dt = Math.min(raw, 0.05), t = arClock.elapsedTime;
   overlay.tick();
   if (revealAt) {
+    // after the outline draws, the 3D model fades in right on top of it
     const since = (performance.now() - revealAt) / 1000;
-    // model fades in over the photo, holds, then lifts off the paper
-    arBuilding.setFade(Math.min(1, Math.max(0, (since - 1.6) / 0.5)));
-    if (since > 2.6) {
-      if (!liftPlayed) { liftPlayed = true; sfx.liftOff(); }
-      liftT = Math.min(1, liftT + dt / 1.4);
-    }
-    overlay.setDetailFade(1 - liftT * 0.75);
+    const f = Math.min(1, Math.max(0, (since - 1.4) / 0.8));
+    arBuilding.setFade(f);
+    if (f > 0 && !materialized) { materialized = true; sfx.liftOff(); }
+    overlay.setDetailFade(1 - f * 0.6);
   }
-  const k = ease(liftT);
-  rig.position.set(0, ALIGN.y + (FLOAT.y - ALIGN.y) * k, ALIGN.z + (FLOAT.z - ALIGN.z) * k);
-  rig.scale.setScalar(ALIGN.s + (FLOAT.s - ALIGN.s) * k);
-  rig.rotation.y = Math.sin(t * 0.45) * 0.55 * k;
-  arBuilding.setExtras(liftT > 0.7);
   arBuilding.update(dt, t, raw);
   mindar.renderer.render(mindar.scene, mindar.camera);
-  if (state === 'build') updatePins(mindar.camera, arBuilding, $('#ar').getBoundingClientRect(), targetVisible);
 }
 
 function pauseAR() {
@@ -137,11 +130,8 @@ function updateLostHint() { $('#lostHint').hidden = !(state === 'build' && arUse
 /* ================= 3D model view ================= */
 function ensureModel() {
   if (!modelPromise) {
-    modelPromise = createModelView($('#modelStage'), {
-      onFrame: (cam, b) => { if (state === 'model') updatePins(cam, b, $('#modelStage').getBoundingClientRect(), true); },
-    }).then(m => {
+    modelPromise = createModelView($('#modelStage')).then(m => {
       modelView = m;
-      m.building.onPass = () => sfx.passSting();
       m.building.setHeight(heightAt(progress), true);
       m.building.setNight(night);
       return m;
@@ -150,42 +140,6 @@ function ensureModel() {
   return modelPromise;
 }
 loadBuildingData(); // start fetching the model early
-
-/* ================= story pins ================= */
-const pinEls = STORIES.map(st => {
-  const b = document.createElement('button');
-  b.className = 'pin hidden'; b.textContent = st.label;
-  b.addEventListener('click', () => openStory(st));
-  $('#pins').appendChild(b);
-  return b;
-});
-const _v = new THREE.Vector3();
-function updatePins(camera, building, rect, visible) {
-  const panelTop = $('.build-panel').getBoundingClientRect().top;
-  STORIES.forEach((st, i) => {
-    const el = pinEls[i];
-    const show = visible && building.height >= st.y + 0.01 && !night;
-    if (show) {
-      _v.set(building.halfWidth(st.y) + 0.012, st.y, 0);
-      building.group.localToWorld(_v);
-      _v.project(camera);
-      const x = rect.left + (_v.x + 1) / 2 * rect.width, y = rect.top + (1 - _v.y) / 2 * rect.height;
-      const on = _v.z < 1 && x > 0 && x < innerWidth - 60 && y > 70 && y < panelTop - 20;
-      el.style.transform = `translate(${x.toFixed(1)}px, ${(y - 15).toFixed(1)}px)`;
-      el.classList.toggle('hidden', !on);
-    } else el.classList.add('hidden');
-  });
-}
-function openStory(st) {
-  $('#storyKicker').textContent = st.kicker;
-  $('#storyTitle').textContent = st.title;
-  $('#storyText').textContent = st.text;
-  $('#storySrc').href = st.src;
-  $('#story').hidden = false;
-  sfx.clank();
-}
-$('#storyClose').addEventListener('click', () => ($('#story').hidden = true));
-$('#story').addEventListener('click', e => { if (e.target.id === 'story') $('#story').hidden = true; });
 
 /* ================= odometer ================= */
 function makeDigits(el, n) {
@@ -211,11 +165,11 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 const fmtDate = d => `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
 
 /* ================= progress (knob, dots, play) ================= */
-const dots = STAGES.map((st, i) => {
+const dots = STAGES.map(st => {
   const b = document.createElement('button');
   b.style.left = `${st.at * 100}%`;
   b.setAttribute('aria-label', `${st.date}: ${st.title}`);
-  b.addEventListener('click', () => { stopPlay(); animateTo(st.at, 700); });
+  b.addEventListener('click', () => { sfx.unlock(); stopPlay(); animateTo(st.at, 700); });
   $('#dots').appendChild(b);
   return b;
 });
@@ -227,7 +181,7 @@ function setProgress(p, { fromUser = false } = {}) {
   arBuilding?.setHeight(h);
   modelView?.building.setHeight(h);
 
-  // knob turns 2.5 times across the whole build; a click every 10°
+  // the knob turns 2.5 times across the whole build; a click every 10°
   const deg = progress * 900;
   $('#knobFace').style.transform = `rotate(${deg}deg)`;
   $('#knob').setAttribute('aria-valuenow', Math.round(progress * 100));
@@ -245,21 +199,10 @@ function setProgress(p, { fromUser = false } = {}) {
   if (idx !== shownStage) {
     if (shownStage !== -1) { sfx.clank(); navigator.vibrate?.(14); }
     shownStage = idx;
-    showCaption(STAGES[idx]);
     syncAudio();
   }
   $('#lightBtn').hidden = !(progress >= 0.995 && !night);
   if (state === 'build' || state === 'model') sfx.setScene({ h });
-}
-
-function showCaption(st) {
-  $('#capDate').textContent = st.date;
-  $('#capTitle').textContent = st.title;
-  $('#capLine').textContent = st.line;
-  $('#capBig').hidden = !st.big; $('#capBig').textContent = st.big || '';
-  $('#capNote').hidden = !st.note; $('#capNote').textContent = st.note || '';
-  const cap = $('.caption');
-  cap.classList.remove('swap'); void cap.offsetWidth; cap.classList.add('swap');
 }
 
 let anim = null;
@@ -290,7 +233,7 @@ knob.addEventListener('pointerdown', e => {
   sfx.unlock(); stopPlay();
   body.classList.remove('coach'); body.dataset.coached = '1';
   const r = knob.getBoundingClientRect();
-  drag = { cx: r.left + r.width / 2, cy: r.top + r.height / 2, a: null, y: e.clientY };
+  drag = { cx: r.left + r.width / 2, cy: r.top + r.height / 2, y: e.clientY };
   drag.a = Math.atan2(e.clientY - drag.cy, e.clientX - drag.cx);
   knob.setPointerCapture(e.pointerId); knob.classList.add('grabbing');
 });
@@ -298,7 +241,7 @@ knob.addEventListener('pointermove', e => {
   if (!drag) return;
   const dx = e.clientX - drag.cx, dy = e.clientY - drag.cy;
   let delta;
-  if (Math.hypot(dx, dy) < 14) { delta = (drag.y - e.clientY) * 0.02; } // tiny radius: treat as vertical drag
+  if (Math.hypot(dx, dy) < 14) delta = (drag.y - e.clientY) * 0.02; // near the centre: vertical drag
   else {
     const a = Math.atan2(dy, dx);
     delta = a - drag.a;
@@ -326,15 +269,15 @@ function setNight(on) {
   overlay?.setNight(on);
   arBuilding?.setNight(on);
   modelView?.building.setNight(on);
+  $('#finaleText').hidden = true;
   if (on) {
     sfx.lightSwitch();
     setTimeout(() => { if (night) sfx.startJazz(); }, 1400);
-    showCaption(FINALE);
+    setTimeout(() => { if (night) $('#finaleText').hidden = false; }, 2600); // once the lights reach the top
     $('#lightBtn').hidden = true;
     navigator.vibrate?.([20, 60, 40]);
   } else {
     sfx.stopJazz();
-    shownStage = -1;
   }
   syncAudio();
 }
@@ -363,8 +306,7 @@ $('#timelineBtn').addEventListener('click', () => {
   setNight(false);
   setProgress(0);
   arBuilding?.setHeight(0, true);
-  liftT = 1; liftPlayed = true;
-  if (performance.now() - revealAt < 2600) revealAt = performance.now() - 5000;
+  if (performance.now() - revealAt < 2200) revealAt = performance.now() - 5000; // skip the rest of the reveal
   setState('build');
 });
 $('#viewToggle').addEventListener('click', () => {
