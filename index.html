@@ -26,12 +26,15 @@
     <p class="credit">Model: <a href="https://sketchfab.com/3d-models/empire-state-building-2174e71baa1d43e896461ed149dad54a" target="_blank" rel="noopener">“Empire State Building” by NanoRay</a>, <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a></p>
   </div>
 
+  <!-- story pins, positioned over the 3D building every frame -->
+  <div id="pins"></div>
+
   <!-- Intro -->
   <section id="intro" class="screen blueprint-bg">
     <div class="intro-inner">
       <p class="eyebrow">Blueprint AR</p>
       <h1>Watch the Empire State Building rise.</h1>
-      <p class="lede">Point your phone at the poster and rebuild it, floor by floor, from 1929 to 1931.</p>
+      <p class="lede">Point your phone at the poster and rebuild it, floor by floor, from 1929 to 1931. Sound on.</p>
       <div class="intro-actions">
         <button id="startBtn" class="btn btn-light">Start scanning</button>
         <button id="skipBtn" class="btn btn-ghost">Explore the 3D blueprint</button>
@@ -67,8 +70,10 @@
       <h2>Empire State Building</h2>
       <p class="meta">Midtown Manhattan · 350 Fifth Ave</p>
       <p class="meta">1,454 ft</p>
-      <div class="stat"><span>Completed Year</span><strong>1931</strong></div>
-      <div class="stat"><span>Floors</span><strong>102</strong></div>
+      <div class="stat-row">
+        <div class="stat"><span>Completed Year</span><strong>1931</strong></div>
+        <div class="stat"><span>Floors</span><strong>102</strong></div>
+      </div>
       <button id="timelineBtn" class="btn btn-primary">View Timeline</button>
     </div>
   </section>
@@ -79,27 +84,62 @@
       <button class="icon-btn back on-dark" data-back aria-label="Back">
         <svg viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>
       </button>
-      <button id="viewToggle" class="pill-btn">
-        <svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3zM12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>
-        <span>3D model</span>
-      </button>
+      <div class="topbar-right">
+        <button id="muteBtn" class="icon-btn on-dark" aria-label="Mute sound">
+          <svg class="snd-on" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4zM16.5 8.5a5 5 0 010 7M19 6a8.5 8.5 0 010 12"/></svg>
+          <svg class="snd-off" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4zM17 9l5 6M22 9l-5 6"/></svg>
+        </button>
+        <button id="viewToggle" class="pill-btn">
+          <svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3zM12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>
+          <span>3D model</span>
+        </button>
+      </div>
     </div>
     <p id="lostHint" class="lost-hint" hidden>Poster lost. Point back at it</p>
+
     <div class="build-panel">
+      <div class="odo" aria-hidden="true">
+        <div class="odo-cell"><span class="odo-k">Floor</span><span class="odo-v" id="odoFloor"></span></div>
+        <div class="odo-cell"><span class="odo-k">Date</span><span class="odo-v odo-date" id="odoDate"></span></div>
+        <div class="odo-cell"><span class="odo-k">Day</span><span class="odo-v" id="odoDay"></span></div>
+      </div>
       <div class="caption" aria-live="polite">
         <p class="label" id="capDate"></p>
         <p class="cap-title" id="capTitle"></p>
         <p class="cap-big" id="capBig" hidden></p>
         <p class="cap-line" id="capLine"></p>
         <p class="cap-note" id="capNote" hidden></p>
+        <button id="lightBtn" class="btn btn-light light-btn" hidden>
+          <svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 00-3.5 10.9c.6.4 1 1.2 1 2V16h5v-.1c0-.8.4-1.6 1-2A6 6 0 0012 3z"/></svg>
+          Press to light the building
+        </button>
       </div>
-      <label class="slider-label" for="slider">Drag to build</label>
-      <div class="slider-wrap">
-        <input id="slider" type="range" min="0" max="1000" value="0" step="1">
-        <div class="ticks" id="ticks"></div>
+      <div class="controls">
+        <button id="playBtn" class="play-btn" aria-label="Play the build">
+          <svg class="i-play" viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></svg>
+          <svg class="i-pause" viewBox="0 0 24 24"><path d="M7 5h3v14H7zM14 5h3v14h-3z"/></svg>
+        </button>
+        <div class="stagebar">
+          <p class="slider-label">Turn the knob to build</p>
+          <div class="track"><div class="fill" id="fill"></div><div class="dots" id="dots"></div></div>
+        </div>
+        <div id="knob" class="knob" role="slider" tabindex="0" aria-label="Build progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div class="knob-face" id="knobFace"><i class="knob-dot"></i></div>
+        </div>
       </div>
     </div>
   </section>
+
+  <!-- story card -->
+  <div id="story" class="story" hidden>
+    <div class="story-card">
+      <button class="story-close" id="storyClose" aria-label="Close">×</button>
+      <p class="label" id="storyKicker"></p>
+      <h3 id="storyTitle"></h3>
+      <p id="storyText"></p>
+      <a id="storySrc" target="_blank" rel="noopener">Source</a>
+    </div>
+  </div>
 
   <div id="loading" class="loading" hidden><span></span>Starting camera…</div>
 
