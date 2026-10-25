@@ -38,7 +38,7 @@ const ALIGN = { y: (POSTER_H / 2 - (18 + 1752)) / POSTER_W, s: 1752 / POSTER_W }
 let revealAt = 0;
 
 async function startAR() {
-  sfx.unlock();
+  sfx.unlock(); sfx.preloadNarration();
   $('#loading').hidden = false;
   try {
     mindar = new MindARThree({
@@ -216,14 +216,42 @@ function animateTo(target, ms, onDone) {
   };
   anim = { raf: requestAnimationFrame(step) };
 }
-function stopPlay() { if (anim) cancelAnimationFrame(anim.raf); anim = null; body.classList.remove('playing'); }
-$('#playBtn').addEventListener('click', () => {
-  sfx.unlock();
-  if (body.classList.contains('playing')) return stopPlay();
+// Play = guided story: narrate a stage, then grow the building to the next
+// stage and narrate that, until opening day.
+let playToken = 0;
+function stopPlay() {
+  playToken++;
+  if (anim) cancelAnimationFrame(anim.raf); anim = null;
+  sfx.stopVoice();
+  body.classList.remove('playing');
+}
+const animateAsync = (to, ms) => new Promise(r => animateTo(to, ms, r));
+async function playStory() {
+  const token = ++playToken;
   body.classList.add('playing');
-  const from = progress >= 0.995 ? 0 : progress;
-  setProgress(from);
-  animateTo(1, (1 - from) * 16000, () => body.classList.remove('playing'));
+  const live = () => token === playToken;
+  if (night) setNight(false);
+  if (progress >= 0.995) { await animateAsync(0, 900); if (!live()) return; }
+  // start at the nearest stage at or ahead of the knob
+  let i = STAGES.findIndex(st => st.at >= progress - 0.01);
+  if (i < 0) i = STAGES.length - 1;
+  if (Math.abs(STAGES[i].at - progress) > 0.005) { await animateAsync(STAGES[i].at, 1400); if (!live()) return; }
+  for (; i < STAGES.length; i++) {
+    await sfx.speak(i);
+    if (!live()) return;
+    if (i + 1 < STAGES.length) {
+      await new Promise(r => setTimeout(r, 350));
+      if (!live()) return;
+      await animateAsync(STAGES[i + 1].at, 2600);
+      if (!live()) return;
+    }
+  }
+  body.classList.remove('playing');
+}
+$('#playBtn').addEventListener('click', () => {
+  sfx.unlock(); sfx.preloadNarration();
+  if (body.classList.contains('playing')) return stopPlay();
+  playStory();
 });
 
 // knob: drag around its centre (or wheel / arrow keys)
@@ -299,7 +327,7 @@ new ResizeObserver(([e]) => {
 
 /* ================= navigation ================= */
 $('#startBtn').addEventListener('click', startAR);
-$('#skipBtn').addEventListener('click', () => { sfx.unlock(); arUsed = false; setProgress(0); setState('model'); });
+$('#skipBtn').addEventListener('click', () => { sfx.unlock(); sfx.preloadNarration(); arUsed = false; setProgress(0); setState('model'); });
 $('#detailsBtn').addEventListener('click', () => setState('details'));
 $('#timelineBtn').addEventListener('click', () => {
   sfx.unlock();

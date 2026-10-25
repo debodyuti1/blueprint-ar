@@ -5,6 +5,7 @@
 let ctx = null, master = null, sfxBus = null, ambBus = null, musicBus = null;
 let muted = false, scene = { stage: 0, h: 0, night: false, active: false };
 let whiteBuf, brownBuf, schedTimer = null, analyser = null;
+let ducking = false, voiceBus = null;
 const layers = {};
 
 function noiseBuffer(type) {
@@ -32,6 +33,7 @@ export function unlock() {
     sfxBus = ctx.createGain(); sfxBus.connect(master);
     ambBus = ctx.createGain(); ambBus.gain.value = 0; ambBus.connect(master);
     musicBus = ctx.createGain(); musicBus.gain.value = 0; musicBus.connect(master);
+    voiceBus = ctx.createGain(); voiceBus.gain.value = 1.15; voiceBus.connect(master);
     whiteBuf = noiseBuffer('white'); brownBuf = noiseBuffer('brown');
 
     // city rumble
@@ -64,7 +66,7 @@ export const isMuted = () => muted;
 export function setScene(s) {
   scene = { ...scene, ...s };
   if (!ctx) return;
-  ramp(ambBus.gain, scene.active ? 1 : 0, 1.2);
+  ramp(ambBus.gain, scene.active ? (ducking ? 0.22 : 1) : 0, ducking ? 0.4 : 1.2);
   const n = scene.night;
   ramp(layers.city.gain, (n ? 0.1 : 0.32) * (scene.stage >= 5 && !n ? 0.8 : 1));
   ramp(layers.wind.gain, Math.max(0, (scene.h - 0.35) * 0.55) * (n ? 0.4 : 1), 1);
@@ -101,7 +103,7 @@ function metal({ t = now(), base = 220, peak = 0.25, d = 1.2, pan = 0, bus = sfx
 /* ---------- ambience events, picked by stage ---------- */
 let nextEvt = 0;
 function scheduler() {
-  if (!ctx || muted || !scene.active || scene.night || ctx.state !== 'running') return;
+  if (!ctx || muted || ducking || !scene.active || scene.night || ctx.state !== 'running') return;
   if (now() < nextEvt) return;
   const st = scene.stage, pan = Math.random() * 1.6 - 0.8;
   if (st === 0) {
@@ -233,4 +235,37 @@ export function level() {
   if (!analyser) return -1;
   const a = new Float32Array(analyser.fftSize); analyser.getFloatTimeDomainData(a);
   return Math.sqrt(a.reduce((s, v) => s + v * v, 0) / a.length);
+}
+
+/* ---------- narration (assets/narration/01.mp3 … 06.mp3) ---------- */
+const voiceBufs = {};
+function loadVoice(i) {
+  if (!voiceBufs[i]) voiceBufs[i] = fetch(`assets/narration/0${i + 1}.mp3`)
+    .then(r => r.arrayBuffer())
+    .then(b => new Promise((res, rej) => ctx.decodeAudioData(b, res, rej)));
+  return voiceBufs[i];
+}
+export function preloadNarration(n = 6) { if (ctx) for (let i = 0; i < n; i++) loadVoice(i).catch(() => {}); }
+
+let voiceSrc = null;
+// plays stage i's narration; resolves when it ends (or right away if stopped / unavailable)
+export async function speak(i) {
+  if (!ctx) return;
+  stopVoice();
+  let buf;
+  try { buf = await loadVoice(i); } catch (e) { return; }
+  return new Promise(resolve => {
+    const src = ctx.createBufferSource(); src.buffer = buf; src.connect(voiceBus);
+    voiceSrc = src;
+    ducking = true; setScene({});
+    src.onended = () => {
+      if (voiceSrc === src) { voiceSrc = null; ducking = false; setScene({}); }
+      resolve();
+    };
+    src.start();
+  });
+}
+export function stopVoice() {
+  if (voiceSrc) { const s = voiceSrc; voiceSrc = null; try { s.stop(); } catch (e) {} }
+  if (ducking) { ducking = false; setScene({}); }
 }
