@@ -210,6 +210,14 @@ body.coach .knob::after { content: ''; position: absolute; inset: -14px; border-
 .news.in .n5, .news.out .n5 { transition-delay: .14s; }
 .news.in .n4, .news.out .n4 { transition-delay: .21s; }
 .news.reset .np { transition: none; }
+.news.fade .np { opacity: 0; transition: opacity .7s ease; }
+
+/* intro loader: title and button come in after the papers */
+.clips, .intro-text, .intro-actions { transition: opacity .8s ease, transform .8s cubic-bezier(.2,.8,.2,1); }
+.intro-text { transition-delay: .15s; }
+.intro-actions { transition-delay: .35s; }
+body.intro-loading .clips { opacity: 0; }
+body.intro-loading .intro-text, body.intro-loading .intro-actions { opacity: 0; transform: translateY(16px); }
 
 /* ---------- model view ---------- */
 .credit { position: absolute; top: calc(66px + var(--safe-t)); right: 14px; left: 14px; text-align: right; font-size: 10.5px; color: rgba(214,230,255,.7); }

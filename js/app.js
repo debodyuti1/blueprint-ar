@@ -38,7 +38,7 @@ const ALIGN = { y: (POSTER_H / 2 - (18 + 1752)) / POSTER_W, s: 1752 / POSTER_W }
 let revealAt = 0;
 
 async function startAR() {
-  sfx.unlock(); sfx.preloadNarration(); sfx.preloadFinale();
+  sfx.unlock(); sfx.preloadNarration(); sfx.preloadFinale(); sfx.preloadPaper();
   $('#loading').hidden = false;
   try {
     mindar = new MindARThree({
@@ -259,7 +259,7 @@ async function playStory() {
   holdLight = false; refreshLightBtn();   // "Now it's your turn" has finished
 }
 $('#playBtn').addEventListener('click', () => {
-  sfx.unlock(); sfx.preloadNarration(); sfx.preloadFinale();
+  sfx.unlock(); sfx.preloadNarration(); sfx.preloadFinale(); sfx.preloadPaper();
   if (body.classList.contains('playing')) return stopPlay();
   playStory();
 });
@@ -325,17 +325,16 @@ async function lightSequence() {
   lighting = true;
   const news = $('#news');
   $('#lightBtn').hidden = true;
-  news.classList.remove('out', 'reset');
+  news.classList.remove('out', 'reset', 'fade');
   void news.offsetWidth;
   news.classList.add('in');
-  sfx.paperRustle();
-  await wait(900);
-  setNight(true, true);
-  await wait(650);
+  sfx.paperSlide();
+  await wait(1150);                       // papers land and hold
   news.classList.replace('in', 'out');
-  sfx.paperRustle();
-  await wait(950);
+  sfx.paperSlide(1.08);
+  await wait(900);                        // papers gone: now light it up, floor by floor, in view
   news.classList.add('reset'); news.classList.remove('out');
+  setNight(true);
   lighting = false;
 }
 $('#lightBtn').addEventListener('click', () => { sfx.unlock(); lightSequence(); });
@@ -367,7 +366,7 @@ $('#startBtn').addEventListener('click', () => {
   if (mindar) { sfx.unlock(); setState(body.classList.contains('found') ? 'build' : 'scan'); return; }
   startAR();
 });
-$('#skipBtn').addEventListener('click', () => { sfx.unlock(); sfx.preloadNarration(); sfx.preloadFinale(); arUsed = false; setProgress(0); setState('model'); });
+$('#skipBtn').addEventListener('click', () => { sfx.unlock(); sfx.preloadNarration(); sfx.preloadFinale(); sfx.preloadPaper(); arUsed = false; setProgress(0); setState('model'); });
 $('#viewToggle').addEventListener('click', () => {
   if (state === 'model') { if (arUsed) setState('build'); else startAR(); }
   else setState('model');
@@ -379,6 +378,22 @@ document.querySelectorAll('[data-back]').forEach(b => b.addEventListener('click'
 }));
 
 setProgress(0);
+
+/* ================= intro loader: papers fly in, fade, then the title appears ================= */
+async function introLoader() {
+  const news = $('#news');
+  await Promise.all([...news.querySelectorAll('img')].map(i => i.decode().catch(() => {})));
+  news.classList.remove('reset');
+  void news.offsetWidth;
+  news.classList.add('in');
+  sfx.paperSlide();
+  await wait(1300);
+  news.classList.add('fade');            // papers dissolve into the faint background clippings
+  body.classList.remove('intro-loading');
+  await wait(800);
+  news.classList.add('reset'); news.classList.remove('in', 'fade');
+}
+introLoader();
 
 // test hook
 window.__app = { level: () => sfx.level(), get state() { return state; }, setState, setProgress, get progress() { return progress; }, setNight };

@@ -2,6 +2,7 @@
 // Ambience follows the build stage; UI sounds give the knob a physical feel;
 // the finale plays a short swing loop through an "old record" filter.
 
+const AMBIENCE = false;   // city rumble, wind, rivets, clangs: off
 let ctx = null, master = null, sfxBus = null, ambBus = null, musicBus = null;
 let muted = false, scene = { stage: 0, h: 0, night: false, active: false };
 let whiteBuf, brownBuf, schedTimer = null, analyser = null;
@@ -66,7 +67,8 @@ export const isMuted = () => muted;
 export function setScene(s) {
   scene = { ...scene, ...s };
   if (!ctx) return;
-  ramp(ambBus.gain, scene.active ? (ducking ? 0.22 : 1) : 0, ducking ? 0.4 : 1.2);
+  // construction ambience is switched off for now (keep the bus silent)
+  ramp(ambBus.gain, AMBIENCE && scene.active ? (ducking ? 0.22 : 1) : 0, ducking ? 0.4 : 1.2);
   const n = scene.night;
   ramp(layers.city.gain, (n ? 0.1 : 0.32) * (scene.stage >= 5 && !n ? 0.8 : 1));
   ramp(layers.wind.gain, Math.max(0, (scene.h - 0.35) * 0.55) * (n ? 0.4 : 1), 1);
@@ -103,6 +105,7 @@ function metal({ t = now(), base = 220, peak = 0.25, d = 1.2, pan = 0, bus = sfx
 /* ---------- ambience events, picked by stage ---------- */
 let nextEvt = 0;
 function scheduler() {
+  if (!AMBIENCE) return;
   if (!ctx || muted || ducking || !scene.active || scene.night || ctx.state !== 'running') return;
   if (now() < nextEvt) return;
   const st = scene.stage, pan = Math.random() * 1.6 - 0.8;
@@ -243,13 +246,24 @@ export function level() {
   return Math.sqrt(a.reduce((s, v) => s + v * v, 0) / a.length);
 }
 
-// paper flutter for the newspaper transition
-export function paperRustle() {
-  if (!ctx || muted) return;
-  const t0 = now();
-  for (let i = 0; i < 14; i++) {
-    const t = t0 + i * 0.035 + Math.random() * 0.02;
-    noiseHit({ t, freq: 1800 + Math.random() * 2600, q: 0.9, peak: 0.07 + Math.random() * 0.08, d: 0.05 + Math.random() * 0.06, pan: Math.random() * 1.2 - 0.6 });
+// paper slide (assets/paper.mp3) for the newspaper animations
+let paperBuf = null;
+function loadPaper() {
+  if (!paperBuf) paperBuf = fetch('assets/paper.mp3').then(r => r.arrayBuffer())
+    .then(b => new Promise((res, rej) => ctx.decodeAudioData(b, res, rej)));
+  return paperBuf;
+}
+export function preloadPaper() { if (ctx) loadPaper().catch(() => {}); }
+export async function paperSlide(rate = 1) {
+  if (muted) return;
+  if (ctx && ctx.state === 'running') {
+    try {
+      const buf = await loadPaper();
+      const src = ctx.createBufferSource(); src.buffer = buf; src.playbackRate.value = rate;
+      src.connect(sfxBus); src.start();
+    } catch (e) {}
+    return;
   }
-  noiseHit({ t: t0, freq: 600, q: 0.5, peak: 0.12, d: 0.45 });
+  // before the first tap there is no unlocked audio; browsers may block this attempt
+  try { const a = new Audio('assets/paper.mp3'); a.volume = 0.8; await a.play(); } catch (e) {}
 }
