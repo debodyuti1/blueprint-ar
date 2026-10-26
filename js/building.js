@@ -152,7 +152,7 @@ export async function createBuilding({ opacity = 0.34 } = {}) {
     get height() { return shown; },
     halfWidth(y) { return D.fx[Math.max(0, Math.min(D.B - 1, Math.floor(y * D.B)))]; },
     setHeight(h, snap = false) { target = Math.max(0, Math.min(1, h)); if (snap) shown = target; },
-    setNight(on) { nightTarget = on ? 1 : 0; lightTarget = on ? 1.02 : 0; if (!on) light = Math.min(light, 0); },
+    setNight(on, instant = false) { nightTarget = on ? 1 : 0; lightTarget = on ? 1.02 : 0; if (!on) light = 0; if (instant) { night = nightTarget; light = lightTarget; } },
     setFade(f) { uniforms.uFade.value = f; group.visible = f > 0.01; },
     update(dt, t, realDt = dt) {
       const prev = shown;

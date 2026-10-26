@@ -242,3 +242,14 @@ export function level() {
   const a = new Float32Array(analyser.fftSize); analyser.getFloatTimeDomainData(a);
   return Math.sqrt(a.reduce((s, v) => s + v * v, 0) / a.length);
 }
+
+// paper flutter for the newspaper transition
+export function paperRustle() {
+  if (!ctx || muted) return;
+  const t0 = now();
+  for (let i = 0; i < 14; i++) {
+    const t = t0 + i * 0.035 + Math.random() * 0.02;
+    noiseHit({ t, freq: 1800 + Math.random() * 2600, q: 0.9, peak: 0.07 + Math.random() * 0.08, d: 0.05 + Math.random() * 0.06, pan: Math.random() * 1.2 - 0.6 });
+  }
+  noiseHit({ t: t0, freq: 600, q: 0.5, peak: 0.12, d: 0.45 });
+}

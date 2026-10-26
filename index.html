@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <meta name="theme-color" content="#0b3e94">
-  <title>Blueprint AR · Empire State Building</title>
+  <title>Blueprint NYC · See how New York was built</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:ital,opsz,wght@1,8..60,700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <script type="importmap">
     { "imports": {
@@ -28,50 +28,36 @@
 
   <!-- Intro -->
   <section id="intro" class="screen blueprint-bg">
+    <div class="clips" aria-hidden="true">
+      <img class="clip c1" src="assets/news/news1.jpg" alt="">
+      <img class="clip c2" src="assets/news/news2.jpg" alt="">
+      <img class="clip c4" src="assets/news/news4.jpg" alt="">
+      <img class="clip c5" src="assets/news/news5.jpg" alt="">
+    </div>
     <div class="intro-inner">
-      <p class="eyebrow">Blueprint AR</p>
-      <h1>Watch the Empire State Building rise.</h1>
-      <p class="lede">Point your phone at the poster and rebuild it, floor by floor, from 1929 to 1931. Sound on.</p>
-      <div class="intro-actions">
-        <button id="startBtn" class="btn btn-light">Start scanning</button>
-        <button id="skipBtn" class="btn btn-ghost">Explore the 3D blueprint</button>
-        <a class="link" href="poster.html" target="_blank">No poster? Open it on another screen</a>
+      <div class="intro-text">
+        <p class="eyebrow">Blueprint NYC</p>
+        <h1>See how<br><em>New York</em><br>was built.</h1>
+        <p class="lede">New York’s skyscrapers back to their first day on site. Turn the knob and watch the city climb.</p>
       </div>
       <p id="camError" class="cam-error" hidden></p>
+      <div class="intro-actions">
+        <button id="startBtn" class="btn btn-light">Scan a building</button>
+        <button id="skipBtn" class="btn btn-ghost" hidden>Explore the 3D blueprint instead</button>
+      </div>
     </div>
   </section>
 
-  <!-- Scan / detected -->
+  <!-- Scan -->
   <section id="scan" class="screen">
-    <div class="brackets"><i></i><i></i><i></i><i></i></div>
-    <div class="sheet scan-card">
-      <div class="searching">
-        <p class="label">Scanning</p>
-        <p class="title">Point at the poster</p>
-        <p class="hint">Fit the whole building inside the frame</p>
-      </div>
-      <div class="found">
-        <p class="label">Detected</p>
-        <p class="title">Empire State Building</p>
-        <button id="detailsBtn" class="btn btn-primary">View Details</button>
-      </div>
-    </div>
-  </section>
-
-  <!-- Details -->
-  <section id="details" class="screen">
     <button class="icon-btn back on-dark" data-back aria-label="Back">
       <svg viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>
     </button>
-    <div class="sheet details-sheet">
-      <h2>Empire State Building</h2>
-      <p class="meta">Midtown Manhattan · 350 Fifth Ave</p>
-      <p class="meta">1,454 ft</p>
-      <div class="stat-row">
-        <div class="stat"><span>Completed Year</span><strong>1931</strong></div>
-        <div class="stat"><span>Floors</span><strong>102</strong></div>
-      </div>
-      <button id="timelineBtn" class="btn btn-primary">View Timeline</button>
+    <div class="brackets"><i></i><i></i><i></i><i></i><b class="scanline"></b></div>
+    <div class="sheet scan-card">
+      <p class="label">Looking up</p>
+      <p class="title">Point at a skyscraper</p>
+      <p class="hint">Keep the whole building in view</p>
     </div>
   </section>
 
@@ -92,17 +78,13 @@
         </button>
       </div>
     </div>
-    <p id="lostHint" class="lost-hint" hidden>Poster lost. Point back at it</p>
+    <p id="lostHint" class="lost-hint" hidden>Building lost. Point back at it</p>
 
     <div class="finale" id="finale">
       <button id="lightBtn" class="btn light-btn" hidden>
         <svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 00-3.5 10.9c.6.4 1 1.2 1 2V16h5v-.1c0-.8.4-1.6 1-2A6 6 0 0012 3z"/></svg>
         Light the building
       </button>
-      <div id="finaleText" class="finale-text" hidden>
-        <p class="finale-big">410 days</p>
-        <p class="finale-sub">102 floors, first shovel to opening day</p>
-      </div>
     </div>
 
     <div class="build-panel">
@@ -112,20 +94,28 @@
         <div class="odo-cell"><span class="odo-k">Day</span><span class="odo-v" id="odoDay"></span></div>
       </div>
       <div class="controls">
-        <div class="stagebar">
-          <p class="slider-label">Turn the knob to build</p>
-          <div class="track"><div class="fill" id="fill"></div><div class="dots" id="dots"></div></div>
-        </div>
         <button id="playBtn" class="play-btn" aria-label="Play the build">
           <svg class="i-play" viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></svg>
           <svg class="i-pause" viewBox="0 0 24 24"><path d="M7 5h3v14H7zM14 5h3v14h-3z"/></svg>
         </button>
+        <div class="stagebar">
+          <p class="slider-label" id="sliderLabel">Turn the knob to build</p>
+          <div class="track"><div class="fill" id="fill"></div><div class="dots" id="dots"></div></div>
+        </div>
         <div id="knob" class="knob" role="slider" tabindex="0" aria-label="Build progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
           <div class="knob-face" id="knobFace"><i class="knob-dot"></i></div>
         </div>
       </div>
     </div>
   </section>
+
+  <!-- newspaper transition for the finale -->
+  <div id="news" class="news" aria-hidden="true">
+    <img class="np n1" src="assets/news/news1.jpg" alt="">
+    <img class="np n2" src="assets/news/news2.jpg" alt="">
+    <img class="np n4" src="assets/news/news4.jpg" alt="">
+    <img class="np n5" src="assets/news/news5.jpg" alt="">
+  </div>
 
   <div id="loading" class="loading" hidden><span></span>Starting camera…</div>
 

@@ -103,7 +103,7 @@ export async function createOverlay() {
     },
     get mode() { return st.mode; },
     get revealDone() { return st.mode === 'reveal' && st.t >= 1; },
-    setNight(on) { st.nightTarget = on ? 1 : 0; },
+    setNight(on, instant = false) { st.nightTarget = on ? 1 : 0; if (instant) { st.night = st.nightTarget; st.dirty = true; } },
     setDetailFade(f) { if (Math.abs(st.fade - f) > 0.01) { st.fade = f; st.dirty = true; } },
     tick(now = performance.now()) {
       let changed = st.dirty;

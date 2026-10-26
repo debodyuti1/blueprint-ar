@@ -25,7 +25,6 @@ function setState(next) {
   updateLostHint();
   if (next === 'model') { pauseAR(); ensureModel().then(m => { if (state === 'model') m.start(); }); }
   else { modelView?.stop(); if (arUsed && next !== 'intro') resumeAR(); }
-  if ((next === 'build' || next === 'model') && !body.dataset.coached) body.classList.add('coach');
   if (next !== 'build' && next !== 'model') stopPlay();
   syncAudio();
 }
@@ -66,8 +65,11 @@ async function startAR() {
         setTimeout(() => body.classList.remove('revealing'), 1300);
         overlay.setMode('reveal');
         revealAt = performance.now();
+        arBuilding.setHeight(0, true);   // the building starts as an empty site
         sfx.scanWhoosh();
         navigator.vibrate?.(30);
+        // scanning animation plays, then we land on the build and the story starts by itself
+        setTimeout(() => { if (state === 'scan') enterBuild(true); }, 2400);
       }
       updateLostHint();
     };
@@ -89,7 +91,6 @@ const withTimeout = (p, ms) => Promise.race([p, new Promise((_, r) => setTimeout
 const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
 const arClock = new THREE.Clock();
-let materialized = false;
 function arFrame() {
   const raw = arClock.getDelta(), dt = Math.min(raw, 0.05), t = arClock.elapsedTime;
   overlay.tick();
@@ -98,7 +99,6 @@ function arFrame() {
     const since = (performance.now() - revealAt) / 1000;
     const f = Math.min(1, Math.max(0, (since - 1.4) / 0.8));
     arBuilding.setFade(f);
-    if (f > 0 && !materialized) { materialized = true; sfx.liftOff(); }
     overlay.setDetailFade(1 - f * 0.6);
   }
   arBuilding.update(dt, t, raw);
@@ -122,6 +122,7 @@ function resumeAR() {
 function showCamError() {
   const e = $('#camError');
   e.hidden = false;
+  $('#skipBtn').hidden = false;
   e.textContent = window.isSecureContext
     ? 'Camera unavailable. Allow camera access for this site in your browser settings and reload, or explore the 3D blueprint instead.'
     : 'The camera needs a secure (https) link. Open the Vercel URL, or explore the 3D blueprint instead.';
@@ -227,6 +228,7 @@ function stopPlay() {
   if (anim) cancelAnimationFrame(anim.raf); anim = null;
   sfx.stopVoice();
   body.classList.remove('playing');
+  $('#sliderLabel').textContent = 'Turn the knob to build';
   if (holdLight) { holdLight = false; refreshLightBtn(); }
 }
 const animateAsync = (to, ms) => new Promise(r => animateTo(to, ms, r));
@@ -234,6 +236,7 @@ async function playStory() {
   const token = ++playToken;
   body.classList.add('playing');
   holdLight = true; refreshLightBtn();
+  $('#sliderLabel').textContent = 'Playing the story';
   const live = () => token === playToken;
   if (night) setNight(false);
   if (progress >= 0.995) { await animateAsync(0, 900); if (!live()) return; }
@@ -252,6 +255,7 @@ async function playStory() {
     }
   }
   body.classList.remove('playing');
+  $('#sliderLabel').textContent = 'Turn the knob to build';
   holdLight = false; refreshLightBtn();   // "Now it's your turn" has finished
 }
 $('#playBtn').addEventListener('click', () => {
@@ -296,18 +300,16 @@ knob.addEventListener('keydown', e => {
 });
 
 /* ================= finale ================= */
-function setNight(on) {
+function setNight(on, instant = false) {
   if (night === on) return;
   night = on;
   body.classList.toggle('night', on);
-  overlay?.setNight(on);
-  arBuilding?.setNight(on);
-  modelView?.building.setNight(on);
-  $('#finaleText').hidden = true;
+  overlay?.setNight(on, instant);
+  arBuilding?.setNight(on, instant);
+  modelView?.building.setNight(on, instant);
   if (on) {
     sfx.lightSwitch();
-    setTimeout(() => { if (night) sfx.startJazz(); }, 900);
-    setTimeout(() => { if (night) $('#finaleText').hidden = false; }, 2600); // once the lights reach the top
+    setTimeout(() => { if (night) sfx.startJazz(); }, instant ? 150 : 900);
     $('#lightBtn').hidden = true;
     navigator.vibrate?.([20, 60, 40]);
   } else {
@@ -315,7 +317,28 @@ function setNight(on) {
   }
   syncAudio();
 }
-$('#lightBtn').addEventListener('click', () => { sfx.unlock(); setNight(true); });
+// newspapers fly in, cover the building, the lights switch on behind them, and they fly away
+let lighting = false;
+const wait = ms => new Promise(r => setTimeout(r, ms));
+async function lightSequence() {
+  if (lighting) return;
+  lighting = true;
+  const news = $('#news');
+  $('#lightBtn').hidden = true;
+  news.classList.remove('out', 'reset');
+  void news.offsetWidth;
+  news.classList.add('in');
+  sfx.paperRustle();
+  await wait(900);
+  setNight(true, true);
+  await wait(650);
+  news.classList.replace('in', 'out');
+  sfx.paperRustle();
+  await wait(950);
+  news.classList.add('reset'); news.classList.remove('out');
+  lighting = false;
+}
+$('#lightBtn').addEventListener('click', () => { sfx.unlock(); lightSequence(); });
 
 /* ================= audio + mute ================= */
 function syncAudio() {
@@ -332,24 +355,26 @@ new ResizeObserver(([e]) => {
 }).observe($('.build-panel'));
 
 /* ================= navigation ================= */
-$('#startBtn').addEventListener('click', startAR);
-$('#skipBtn').addEventListener('click', () => { sfx.unlock(); sfx.preloadNarration(); sfx.preloadFinale(); arUsed = false; setProgress(0); setState('model'); });
-$('#detailsBtn').addEventListener('click', () => setState('details'));
-$('#timelineBtn').addEventListener('click', () => {
-  sfx.unlock();
+function enterBuild(autoplay) {
   setNight(false);
   setProgress(0);
   arBuilding?.setHeight(0, true);
-  if (performance.now() - revealAt < 2200) revealAt = performance.now() - 5000; // skip the rest of the reveal
+  if (performance.now() - revealAt < 2200) revealAt = performance.now() - 5000; // finish the reveal
   setState('build');
+  if (autoplay) playStory();       // the story is the main experience; the knob takes over when touched
+}
+$('#startBtn').addEventListener('click', () => {
+  if (mindar) { sfx.unlock(); setState(body.classList.contains('found') ? 'build' : 'scan'); return; }
+  startAR();
 });
+$('#skipBtn').addEventListener('click', () => { sfx.unlock(); sfx.preloadNarration(); sfx.preloadFinale(); arUsed = false; setProgress(0); setState('model'); });
 $('#viewToggle').addEventListener('click', () => {
   if (state === 'model') { if (arUsed) setState('build'); else startAR(); }
   else setState('model');
 });
 document.querySelectorAll('[data-back]').forEach(b => b.addEventListener('click', () => {
-  if (state === 'details') setState('scan');
-  else if (state === 'build') { setNight(false); arBuilding?.setHeight(1); setState('details'); }
+  if (state === 'scan') setState('intro');
+  else if (state === 'build') { setNight(false); setState('intro'); }
   else if (state === 'model') setState(arUsed ? 'build' : 'intro');
 }));
 
