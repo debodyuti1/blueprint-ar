@@ -21,7 +21,8 @@ function setState(next) {
   state = next;
   body.dataset.state = next;
   if (overlay && body.classList.contains('found')) overlay.setMode(next === 'build' ? 'build' : 'revealed');
-  $('#viewToggle span').textContent = next === 'model' ? (arUsed ? 'On poster' : 'Use camera') : '3D model';
+  $('#viewToggle span').textContent = next === 'model' ? 'Live camera' : 'View in 3D';
+  $('#viewToggle').setAttribute('aria-label', next === 'model' ? 'Back to the live camera' : 'View the building in 3D');
   updateLostHint();
   if (next === 'model') { pauseAR(); ensureModel().then(m => { if (state === 'model') m.start(); }); }
   else { modelView?.stop(); if (arUsed && next !== 'intro') resumeAR(); }
@@ -199,7 +200,7 @@ function setProgress(p, { fromUser = false } = {}) {
   if (night && progress < 0.995) setNight(false);
   const idx = stageAt(progress);
   if (idx !== shownStage) {
-    if (shownStage !== -1) { sfx.clank(); navigator.vibrate?.(14); }
+    if (shownStage !== -1) navigator.vibrate?.(14);
     shownStage = idx;
     syncAudio();
   }
@@ -393,7 +394,14 @@ async function introLoader() {
   await wait(800);
   news.classList.add('reset'); news.classList.remove('in', 'fade');
 }
-introLoader();
+// browsers only allow sound after a tap, so the loader starts on "tap to begin"
+const gate = $('#gate');
+gate.addEventListener('click', () => {
+  sfx.unlock(); sfx.preloadPaper(); sfx.preloadNarration(); sfx.preloadFinale();
+  gate.classList.add('gone');
+  setTimeout(() => gate.remove(), 600);
+  introLoader();
+}, { once: true });
 
 // test hook
 window.__app = { level: () => sfx.level(), get state() { return state; }, setState, setProgress, get progress() { return progress; }, setNight };

@@ -41,7 +41,7 @@ body.night #model { background-color: #050f2a; }
     linear-gradient(rgba(170,205,255,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(170,205,255,.06) 1px, transparent 1px);
   background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px; }
 body.found #bp { opacity: .5; }
-body[data-state="build"] #bp { opacity: .93; }
+body[data-state="build"] #bp { opacity: .8; }
 body.night #bp { background-color: #050f2a; }
 #bp::after { content: ''; position: absolute; left: 0; right: 0; top: -30%; height: 30%; opacity: 0;
   background: linear-gradient(to bottom, rgba(90,180,255,0), rgba(120,200,255,.5) 85%, rgba(230,248,255,.95)); }
@@ -136,6 +136,9 @@ body.found .brackets .scanline { display: none; }
 .topbar .back { position: static; }
 .topbar-right { display: flex; gap: 8px; align-items: center; }
 #muteBtn .snd-off { display: none; }
+.pill-btn .i-camera { display: none; }
+body[data-state="model"] .pill-btn .i-cube { display: none; }
+body[data-state="model"] .pill-btn .i-camera { display: block; }
 body.muted #muteBtn .snd-on { display: none; }
 body.muted #muteBtn .snd-off { display: block; }
 .lost-hint { position: absolute; top: calc(70px + var(--safe-t)); left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.6); color: #fff; font-size: 14px; font-weight: 500; padding: 8px 14px; border-radius: 18px; white-space: nowrap; }
@@ -211,6 +214,15 @@ body.coach .knob::after { content: ''; position: absolute; inset: -14px; border-
 .news.in .n4, .news.out .n4 { transition-delay: .21s; }
 .news.reset .np { transition: none; }
 .news.fade .np { opacity: 0; transition: opacity .7s ease; }
+
+/* tap-to-begin gate (unlocks sound for the paper loader) */
+.gate { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; color: #fff; cursor: pointer; transition: opacity .5s ease; }
+.gate.gone { opacity: 0; pointer-events: none; }
+.gate-mark { font-size: 13px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: #9cc8ff; }
+.gate-tap { display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 22px; border-radius: 24px; font-size: 16px; font-weight: 600; background: rgba(255,255,255,.12); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.45); animation: gatePulse 1.8s ease-in-out infinite; }
+.gate-tap svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.gate-sub { font-size: 13px; color: #bcd8ff; }
+@keyframes gatePulse { 50% { box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.9), 0 0 24px rgba(140,198,255,.45); } }
 
 /* intro loader: title and button come in after the papers */
 .clips, .intro-text, .intro-actions { transition: opacity .8s ease, transform .8s cubic-bezier(.2,.8,.2,1); }

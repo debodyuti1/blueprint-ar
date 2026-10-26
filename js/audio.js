@@ -194,7 +194,7 @@ export async function startJazz() {
   const src = ctx.createBufferSource(); src.buffer = buf; src.connect(musicBus);
   finaleSrc = src;
   musicBus.gain.cancelScheduledValues(now()); musicBus.gain.setValueAtTime(0.0001, now());
-  musicBus.gain.exponentialRampToValueAtTime(0.9, now() + 0.6);
+  musicBus.gain.exponentialRampToValueAtTime(0.45, now() + 0.6);
   src.onended = () => { if (finaleSrc === src) finaleSrc = null; };
   src.start();
 }
